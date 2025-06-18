@@ -1,157 +1,54 @@
-import re
-import string
-from PyPDF2 import PdfReader
+# report_generator.py
 
-def read_txt(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return f.read()
+def afficher_resultats(lignes_identiques, lignes_diff, taux_similarite, communs, uniques1, uniques2, fichier1, fichier2):
+    print("\n===== Résumé de la comparaison =====\n")
+    print(f"Fichiers comparés : '{fichier1}' et '{fichier2}'")
+    print(f"Taux de similarité : {taux_similarite}%")
+    print(f"Nombre de lignes identiques : {len(lignes_identiques)}")
+    print(f"Nombre de lignes différentes : {len(lignes_diff)}\n")
 
-def read_pdf(file_path):
-    text = ""
-    reader = PdfReader(file_path)
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    return text
+    print("Lignes identiques (numéro de ligne et contenu) :")
+    for num, contenu in lignes_identiques:
+        print(f"  Ligne {num}: {contenu}")
 
-def clean_text(text):
-    # enlève ponctuation, espaces multiples, passe en minuscules
-    text = text.lower()
-    text = re.sub(rf'[{re.escape(string.punctuation)}]', '', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
+    print("\nLignes différentes (numéro de ligne, fichier1, fichier2) :")
+    for num, ligne1, ligne2 in lignes_diff:
+        print(f"  Ligne {num}:")
+        print(f"    - {fichier1}: {ligne1 if ligne1 else '<aucune ligne>'}")
+        print(f"    + {fichier2}: {ligne2 if ligne2 else '<aucune ligne>'}")
 
-def compare_texts(text1, text2, ignore_case=True, clean=False, mode='strict', keyword=""):
-    if clean:
-        text1 = clean_text(text1)
-        text2 = clean_text(text2)
-    elif ignore_case:
-        text1 = text1.lower()
-        text2 = text2.lower()
+    print("\nMots communs dans les deux fichiers :")
+    print(", ".join(communs) if communs else "<Aucun mot commun>")
 
-    lines1 = text1.splitlines()
-    lines2 = text2.splitlines()
-    max_len = max(len(lines1), len(lines2))
+    print("\nMots uniques à", fichier1, ":")
+    print(", ".join(uniques1) if uniques1 else "<Aucun mot unique>")
 
-    identical = 0
-    diff = 0
-    only_1 = 0
-    only_2 = 0
-    detailed_diff = []
+    print("\nMots uniques à", fichier2, ":")
+    print(", ".join(uniques2) if uniques2 else "<Aucun mot unique>")
 
-    for i in range(max_len):
-        l1 = lines1[i] if i < len(lines1) else ""
-        l2 = lines2[i] if i < len(lines2) else ""
+def exporter_rapport(nom_fichier, lignes_identiques, lignes_diff, taux_similarite, communs, uniques1, uniques2):
+    with open(nom_fichier, "w", encoding="utf-8") as f:
+        f.write("===== Rapport de comparaison =====\n\n")
+        f.write(f"Taux de similarité : {taux_similarite}%\n")
+        f.write(f"Nombre de lignes identiques : {len(lignes_identiques)}\n")
+        f.write(f"Nombre de lignes différentes : {len(lignes_diff)}\n\n")
 
-        if l1 == l2:
-            identical += 1
-            detailed_diff.append("  " + l1)
-        elif l1 and not l2:
-            only_1 += 1
-            detailed_diff.append("- " + l1)
-        elif not l1 and l2:
-            only_2 += 1
-            detailed_diff.append("+ " + l2)
-        else:
-            diff += 1
-            if mode == 'souple':
-                # dans le mode souple on peut essayer de nettoyer et comparer mot à mot
-                # mais ici on affiche juste les deux lignes avec indicateurs
-                detailed_diff.append("- " + l1)
-                detailed_diff.append("+ " + l2)
-            else:
-                detailed_diff.append("- " + l1)
-                detailed_diff.append("+ " + l2)
+        f.write("Lignes identiques (numéro de ligne et contenu) :\n")
+        for num, contenu in lignes_identiques:
+            f.write(f"  Ligne {num}: {contenu}\n")
 
-    words1 = set(text1.split())
-    words2 = set(text2.split())
+        f.write("\nLignes différentes (numéro de ligne, fichier1, fichier2) :\n")
+        for num, ligne1, ligne2 in lignes_diff:
+            f.write(f"  Ligne {num}:\n")
+            f.write(f"    - Fichier 1: {ligne1 if ligne1 else '<aucune ligne>'}\n")
+            f.write(f"    + Fichier 2: {ligne2 if ligne2 else '<aucune ligne>'}\n")
 
-    unique_1 = words1 - words2
-    unique_2 = words2 - words1
+        f.write("\nMots communs dans les deux fichiers :\n")
+        f.write(", ".join(communs) + "\n" if communs else "<Aucun mot commun>\n")
 
-    total_lines = max_len
-    similarity = (identical / total_lines) * 100 if total_lines > 0 else 0
+        f.write("\nMots uniques au fichier 1 :\n")
+        f.write(", ".join(uniques1) + "\n" if uniques1 else "<Aucun mot unique>\n")
 
-    keyword = keyword.lower()
-    kw_count1 = len(re.findall(r'\b' + re.escape(keyword) + r'\b', text1)) if keyword else 0
-    kw_count2 = len(re.findall(r'\b' + re.escape(keyword) + r'\b', text2)) if keyword else 0
-
-    return {
-        "total_lines": total_lines,
-        "identical": identical,
-        "diff": diff,
-        "only_1": only_1,
-        "only_2": only_2,
-        "similarity": similarity,
-        "unique_1": unique_1,
-        "unique_2": unique_2,
-        "keyword": keyword,
-        "kw_count1": kw_count1,
-        "kw_count2": kw_count2,
-        "detailed_diff": detailed_diff
-    }
-
-def generate_report(res):
-    lines = []
-    lines.append(f"Total lignes comparées : {res['total_lines']}")
-    lines.append(f"Lignes identiques : {res['identical']}")
-    lines.append(f"Lignes différentes : {res['diff']}")
-    lines.append(f"Lignes seulement dans fichier 1 : {res['only_1']}")
-    lines.append(f"Lignes seulement dans fichier 2 : {res['only_2']}")
-    lines.append(f"Taux de similarité : {res['similarity']:.2f} %\n")
-
-    lines.append(f"Mots présents uniquement dans fichier 1 ({len(res['unique_1'])}):")
-    lines.append(", ".join(sorted(res['unique_1'])) + "\n")
-
-    lines.append(f"Mots présents uniquement dans fichier 2 ({len(res['unique_2'])}):")
-    lines.append(", ".join(sorted(res['unique_2'])) + "\n")
-
-    if res['keyword']:
-        lines.append(f'Mot-clé "{res["keyword"]}" trouvé {res["kw_count1"]} fois dans fichier 1, {res["kw_count2"]} fois dans fichier 2.\n')
-
-    lines.append("Différences ligne par ligne :")
-    lines.extend(res['detailed_diff'])
-
-    return "\n".join(lines)
-
-def main():
-    print("=== Comparateur de fichiers TXT/PDF ===")
-    f1 = input("Chemin fichier 1 (.txt ou .pdf) : ").strip()
-    f2 = input("Chemin fichier 2 (.txt ou .pdf) : ").strip()
-
-    # Lecture fichiers
-    def read_file(path):
-        if path.lower().endswith(".pdf"):
-            return read_pdf(path)
-        else:
-            return read_txt(path)
-
-    try:
-        text1 = read_file(f1)
-        text2 = read_file(f2)
-    except Exception as e:
-        print("Erreur lecture fichiers :", e)
-        return
-
-    # Options utilisateur
-    ic = input("Ignorer la casse ? (O/n) : ").strip().lower() != 'n'
-    clean = input("Nettoyer ponctuation et espaces ? (O/n) : ").strip().lower() != 'n'
-    mode = input("Mode (strict/souple) [strict] : ").strip().lower()
-    if mode not in ['strict', 'souple']:
-        mode = 'strict'
-    keyword = input("Mot-clé à rechercher (laisser vide si aucun) : ").strip()
-
-    res = compare_texts(text1, text2, ignore_case=ic, clean=clean, mode=mode, keyword=keyword)
-
-    report = generate_report(res)
-    print("\n=== Rapport de comparaison ===\n")
-    print(report)
-
-    save = input("\nSauvegarder le rapport dans 'rapport_comparaison.txt' ? (O/n) : ").strip().lower() != 'n'
-    if save:
-        with open("rapport_comparaison.txt", "w", encoding="utf-8") as f:
-            f.write(report)
-        print("Rapport sauvegardé dans 'rapport_comparaison.txt'.")
-
-if __name__ == "__main__":
-    main()
+        f.write("\nMots uniques au fichier 2 :\n")
+        f.write(", ".join(uniques2) + "\n" if uniques2 else "<Aucun mot unique>\n")
 
