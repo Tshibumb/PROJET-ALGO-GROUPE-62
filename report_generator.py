@@ -52,3 +52,4 @@ def exporter_rapport(nom_fichier, lignes_identiques, lignes_diff, taux_similarit
         f.write("\nMots uniques au fichier 2 :\n")
         f.write(", ".join(uniques2) + "\n" if uniques2 else "<Aucun mot unique>\n")
 
+
